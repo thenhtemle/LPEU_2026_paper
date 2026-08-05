@@ -1,0 +1,135 @@
+============================================================
+HƯỚNG DẪN SỬ DỤNG — LPEU (Local Prototype Erasure Unlearning)
+Đề tài: T826_KL_KHMT09 — Học Quên Dựa Trên Phá Cụm Nguyên Mẫu Cục Bộ Trong Không Gian Đặc Trưng Cho Nhận Dạng Khuôn Mặt
+Sinh viên: Lê Thanh Tâm — MSSV: 22127374
+============================================================
+
+1. CẤU TRÚC THƯ MỤC MÃ NGUỒN
+
+  src/  (= thư mục gốc này)
+  |-- mufac/
+  |     |-- lpeu-v7-mufac.ipynb          (notebook chính — thực nghiệm trên MUFAC)
+  |     |-- original_model.pt            (checkpoint mô hình gốc đã huấn luyện sẵn)
+  |     |-- lpeu_mufac_model.pt          (checkpoint sau khi gỡ bỏ bằng LPEU)
+  |     |-- lpeu_mufac_repaired_model.pt (checkpoint sau giai đoạn phục hồi)
+  |     |-- results_mufac.json           (kết quả độ đo — tổng hợp)
+  |     `-- ablation_result_mufac.json   (kết quả nghiên cứu loại bỏ thành phần)
+  `-- vggface2/
+        |-- lpeu-v7-vgg-face2.ipynb      (notebook chính — thực nghiệm trên VGGFace2)
+        |-- original_model.pt
+        |-- lpeu_v7_model.pt
+        |-- lpeu_v7_repaired_model.pt
+        |-- results_v7.json
+        `-- ablation_results_vggface2.json
+
+Ghi chú: các file .pt và .json trong 2 thư mục trên là KẾT QUẢ ĐÃ CHẠY
+SẴN (dùng để tái tạo trực tiếp các bảng số liệu trong báo cáo khóa
+luận mà không cần huấn luyện lại từ đầu — xem mục 4 bên dưới).
+
+2. CÁCH CHẠY CHƯƠNG TRÌNH TỪ ĐẦU (huấn luyện lại toàn bộ)
+
+Bước 1 — Mở notebook:
+  - Khuyến nghị: tải file .ipynb lên Kaggle Notebook
+    (kaggle.com/code/new), thêm 2 dataset đầu vào (xem mục 4 trong file
+    HuongDanCaiDat.txt), bật GPU (Settings > Accelerator > chọn GPU,
+    ví dụ T4 x2).
+  - Cách khác: mở bằng Jupyter cục bộ
+
+      jupyter notebook lpeu-v7-mufac.ipynb
+
+    sau khi đã cài đặt thư viện theo HuongDanCaiDat.txt và sửa lại
+    đường dẫn "dataset_root" trong class Config cho khớp với vị trí dữ
+    liệu cục bộ trên máy.
+
+Bước 2 — Chạy tuần tự từng cell từ trên xuống dưới, KHÔNG bỏ qua cell
+nào (các cell định nghĩa class/hàm được các cell phía sau sử dụng
+lại). Notebook được chia thành các khối, đánh dấu bằng comment
+"CELL <tên>":
+
+  CELL B   Config — cấu hình toàn bộ siêu tham số của pipeline
+  CELL C   Dataset utilities — nạp và chia dữ liệu train/retain/forget
+  CELL D   Model architecture — ResNet-18 + Linear Neck + ArcFace
+  CELL E   Huấn luyện mô hình gốc (original model)
+  CELL F   Prototype & K-NN utilities — xây dựng prototype danh tính,
+           tìm danh tính lân cận gần nhất
+  CELL G   EWC utilities — tính Fisher Information để bảo vệ tham số
+           quan trọng cho tập retain
+  CELL H   Loss functions — hàm mất mát nhánh gỡ bỏ (forget)
+  CELL H2  PCGrad utility — giải quyết xung đột gradient forget/retain
+  CELL I   Staged unlearning loop — vòng lặp huấn luyện LPEU 3 giai
+           đoạn (ERASE / REFINE / STABLE)
+  CELL I2  Post-unlearning retain repair — phục hồi sau gỡ bỏ
+           (giai đoạn R1 / R2 / R3)
+  CELL J   Evaluation metrics — các độ đo đánh giá (retain accuracy,
+           forget similarity drop, neighbor shift, compactness,
+           entropy...)
+  CELL K   Baselines — cài đặt Fine-tune và Negative Gradient để so
+           sánh đối chiếu
+  CELL L   FULL PIPELINE — chạy toàn bộ quy trình end-to-end (đây là
+           cell CHÍNH, gọi lại toàn bộ hàm định nghĩa ở các cell trên)
+  CELL M   Ablation study (tùy chọn) — chạy các biến thể loại bỏ từng
+           thành phần (No Staging, No EWC, No PCGrad, No Anchor,
+           Standard Margin, No Repulsion, No Proto-Retain)
+  CELL N   Tuning guide — ghi chú hướng dẫn đọc log & điều chỉnh siêu
+           tham số (không cần chạy, chỉ là tài liệu tham khảo dạng
+           docstring)
+
+Riêng notebook VGGFace2 có thêm 3 cell đầu (Cell 0-2) để chuyển đổi
+cấu trúc dataset gốc (folder-per-identity trên Kaggle) sang định dạng
+dùng chung với pipeline — BẮT BUỘC chạy các cell này TRƯỚC CELL B.
+
+Bước 3 — Theo dõi log huấn luyện:
+  Log được in trực tiếp trong notebook theo từng epoch, ví dụ:
+    [MUFAC][03/20][ERASE] erase=0.721 repel=0.843 anc=0.0000 ewc=0.0231
+                        proto_sim=0.601(drop:+0.150) H=1.95/2.08
+                        fgt_acc=0.0000 ret_acc=0.0048 conf=3.1 boost=100x
+  Ý nghĩa từng trường log được giải thích chi tiết trong CELL N (Tuning
+  Guide) của từng notebook.
+
+Bước 4 — Kết quả đầu ra sau khi chạy xong CELL L:
+  - original_model.pt              mô hình gốc trước khi gỡ bỏ
+  - lpeu_v7_model.pt / lpeu_mufac_model.pt
+                                    mô hình sau khi áp dụng LPEU
+  - lpeu_v7_repaired_model.pt / lpeu_mufac_repaired_model.pt
+                                    mô hình sau giai đoạn phục hồi retain
+  - results_v7.json / results_mufac.json
+                                    toàn bộ kết quả độ đo (retain
+                                    accuracy, forget similarity drop,
+                                    neighbor shift, compactness,
+                                    entropy) của LPEU và các baseline
+                                    (Fine-tune, Negative Gradient)
+  Sau khi chạy thêm CELL M (tùy chọn):
+  - ablation_results_vggface2.json / ablation_result_mufac.json
+                                    kết quả các biến thể ablation
+
+3. THỜI GIAN CHẠY DỰ KIẾN (trên GPU Kaggle T4)
+  - Huấn luyện mô hình gốc (CELL E, gọi trong CELL L): tối đa 120 epoch
+    (có early-stopping, patience=20) — khoảng 1-2 giờ.
+  - Vòng lặp gỡ bỏ LPEU (CELL I): khoảng 20-31 epoch tùy bộ dữ liệu
+    (xem Chương 3, mục "Phân tích độ phức tạp tính toán" trong báo cáo
+    khóa luận) — khoảng 10-20 phút.
+  - Giai đoạn phục hồi (CELL I2): khoảng 30 epoch — khoảng 15-25 phút.
+  - Ablation study (CELL M, tùy chọn): lặp lại toàn bộ pipeline gỡ bỏ
+    cho mỗi biến thể (7 biến thể) — thời gian gấp khoảng 7 lần một lần
+    chạy LPEU đơn lẻ.
+
+4. CHẠY LẠI KẾT QUẢ CÓ SẴN MÀ KHÔNG CẦN HUẤN LUYỆN TỪ ĐẦU
+Các file checkpoint .pt đính kèm trong thư mục mufac/ và vggface2/ là
+kết quả đã huấn luyện sẵn, dùng để tái tạo trực tiếp các bảng số liệu
+trong báo cáo khóa luận. Có thể nạp trực tiếp bằng đoạn code sau (chạy
+trong một cell mới, SAU KHI đã chạy xong CELL B-D để có sẵn class
+Config và FaceModel) mà không cần chạy lại CELL E/I/I2:
+
+  import torch
+  ckpt = torch.load("lpeu_v7_repaired_model.pt", map_location=cfg.device)
+  # ckpt có thể là state_dict hoặc model object tùy cách lưu trong
+  # CELL L — kiểm tra bằng type(ckpt) trước khi nạp vào model.
+
+5. GHI CHÚ
+  - Kết quả có thể dao động nhẹ giữa các lần chạy khác nhau dù đã cố
+    định seed=42 trong Config, do tính không tất định (non-determinism)
+    của một số phép toán trên CUDA.
+  - Nếu muốn huấn luyện lại mô hình gốc từ đầu (xóa cache checkpoint
+    cũ), dùng cell xóa cache ở đầu mỗi notebook (ví dụ Cell 2 trong
+    lpeu-v7-mufac.ipynb hoặc Cell 6 trong lpeu-v7-vgg-face2.ipynb)
+    trước khi chạy lại CELL L.

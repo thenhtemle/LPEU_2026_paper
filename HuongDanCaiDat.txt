@@ -1,0 +1,92 @@
+============================================================
+HƯỚNG DẪN CÀI ĐẶT — LPEU (Local Prototype Erasure Unlearning)
+Đề tài: T826_KL_KHMT09 — Học Quên Dựa Trên Phá Cụm Nguyên Mẫu Cục Bộ Trong Không Gian Đặc Trưng Cho Nhận Dạng Khuôn Mặt
+Sinh viên: Lê Thanh Tâm — MSSV: 22127374
+============================================================
+
+1. YÊU CẦU HỆ THỐNG
+- Hệ điều hành: Windows / Linux / macOS (khuyến nghị Linux; mã nguồn
+  được phát triển và kiểm thử chính trên môi trường Kaggle Notebook,
+  nền Ubuntu).
+- Python: 3.10 trở lên (đã kiểm thử với Python 3.12.13).
+- GPU: khuyến nghị có GPU hỗ trợ CUDA (NVIDIA, tối thiểu 8GB VRAM) để
+  huấn luyện trong thời gian hợp lý. Vẫn có thể chạy trên CPU nhưng
+  thời gian huấn luyện sẽ rất lâu (nhiều giờ cho mỗi notebook).
+- RAM: tối thiểu 16GB.
+- Dung lượng ổ đĩa trống: tối thiểu 5GB (chứa dataset + checkpoint mô
+  hình .pt).
+
+2. CÔNG CỤ PHÁT TRIỂN
+- Jupyter Notebook / JupyterLab, hoặc môi trường tương đương hỗ trợ
+  file .ipynb (Google Colab, Kaggle Notebook, VS Code với Jupyter
+  extension).
+- Mã nguồn được phát triển và chạy chính thức trên nền tảng Kaggle
+  Notebook (kaggle.com/code) do cần GPU miễn phí và tích hợp sẵn dữ
+  liệu qua Kaggle Datasets. Khuyến nghị chạy lại trên Kaggle để không
+  phải chỉnh sửa đường dẫn dữ liệu.
+
+3. THƯ VIỆN CẦN CÀI ĐẶT
+Các thư viện Python được sử dụng trực tiếp trong mã nguồn (import
+trong 2 file .ipynb):
+  - torch              (PyTorch — framework huấn luyện chính)
+  - torchvision         (mô hình ResNet-18 pretrained, biến đổi ảnh)
+  - numpy
+  - pandas              (chỉ dùng trong notebook MUFAC)
+  - scikit-learn         (sklearn.linear_model.LogisticRegression,
+                         sklearn.metrics.roc_auc_score — dùng cho độ
+                         đo Membership Inference Attack)
+  - Pillow (PIL)         (đọc/ghi ảnh)
+  - jupyter / notebook   (để mở và chạy file .ipynb)
+
+Nếu chạy trên Kaggle Notebook: tất cả thư viện trên đã được cài sẵn,
+KHÔNG cần cài thêm.
+
+Nếu chạy trên máy cá nhân (local), cài đặt bằng pip:
+
+  pip install torch torchvision numpy pandas scikit-learn Pillow jupyter
+
+Lưu ý: nên cài bản torch có hỗ trợ CUDA tương ứng với driver GPU của
+máy. Tham khảo lệnh cài đặt chính xác tại:
+  https://pytorch.org/get-started/locally/
+(chọn hệ điều hành, trình quản lý gói, và phiên bản CUDA phù hợp trước
+khi lấy lệnh cài đặt).
+
+4. DỮ LIỆU (DATASET)
+Mã nguồn sử dụng 2 bộ dữ liệu:
+
+  a) MUFAC / Custom Korean Family Dataset
+     - Nguồn gốc chính thức (tác giả bộ dữ liệu MUFAC — Dongbin Na,
+       POSTECH), bản đã resize sẵn 128x128:
+         https://postechackr-my.sharepoint.com/:u:/g/personal/dongbinna_postech_ac_kr/EbMhBPnmIb5MutZvGicPKggBWKm5hLs0iwKfGW7_TwQIKg?download=1
+       Tải bằng lệnh (chạy trong notebook hoặc terminal):
+         wget "<link_trên>" -O custom_korean_family_dataset_resolution_128.zip
+         unzip custom_korean_family_dataset_resolution_128.zip -d ./custom_korean_family_dataset_resolution_128
+     - Bản mirror đã upload lại lên Kaggle Datasets (dùng trực tiếp
+       trong notebook lpeu-v7-mufac.ipynb qua đường dẫn
+       /kaggle/input/datasets/thenhtemle/custom-korean-family-faces):
+         kaggle.com/datasets/thenhtemle/custom-korean-family-faces
+       (đây là bản do chính sinh viên tải từ link SharePoint gốc ở
+       trên về rồi upload lại lên Kaggle, để tiện tích hợp qua "Add
+       Input" khi chạy trên Kaggle Notebook).
+
+  b) VGGFace2 (bản rút gọn 300 danh tính):
+       kaggle.com/datasets/hearfool/vggface2
+
+Nếu chạy trên Kaggle Notebook: vào mục "Add Input" > tìm và thêm 2
+dataset trên (mục a dùng bản mirror Kaggle, mục b dùng trực tiếp) vào
+notebook. Dữ liệu sẽ tự động có sẵn tại đường dẫn /kaggle/input/....
+
+Nếu chạy trên máy cá nhân: với MUFAC, tải trực tiếp từ link SharePoint
+gốc ở mục a) bằng wget/unzip như trên (không cần qua Kaggle); với
+VGGFace2, tải dataset ở mục b) về máy. Sau đó sửa lại biến
+"dataset_root" trong class Config (khối CELL B của mỗi notebook) trỏ
+đến đường dẫn thư mục dữ liệu cục bộ tương ứng.
+
+5. KIỂM TRA CÀI ĐẶT
+Sau khi cài đặt xong, mở terminal/cmd và chạy:
+
+  python -c "import torch, torchvision, numpy, pandas, sklearn, PIL; print('OK - San sang chay chuong trinh')"
+
+Nếu không có lỗi ImportError và dòng "OK - San sang chay chuong trinh"
+được in ra, môi trường đã sẵn sàng. Xem chi tiết cách chạy chương
+trình trong file HuongDanSuDung.txt.
