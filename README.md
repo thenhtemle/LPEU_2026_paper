@@ -6,7 +6,20 @@ Most identity-unlearning methods for face recognition work at the **output level
 
 LPEU targets the representation directly. It builds per-identity prototypes from an ArcFace-trained backbone, locates the forgotten identity's nearest-neighbour identities, and optimizes a two-branch objective that **disperses the forgotten cluster** while **anchoring its geometric neighbours**. Because the two branches conflict on shared parameters, their gradients are reconciled by projection.
 
+<p align="center">
+  <img src="figures/cluster.png" alt="Local cluster erasure" width="88%">
+</p>
+
+<p align="center"><em>Before unlearning the forget identity's embeddings form a tight cluster; afterwards they are scattered and the original region is vacated, while neighbouring identities keep their position.</em></p>
+
 ## Method at a glance
+
+<p align="center">
+  <img src="figures/full_pipeline.png" alt="LPEU architecture" width="94%">
+</p>
+
+<p align="center"><em>The trainable student (upper) and frozen teacher (lower) share the backbone, neck and ArcFace head. Eight loss terms split into a forget and a retain branch; the central gradient surgery block reconciles them before updating shared parameters.</em></p>
+
 
 | Component | Role |
 |---|---|
@@ -39,6 +52,7 @@ src/
     ├── results_v7.json
     └── ablation_results_vggface2.json
 
+figures/             # figures used in this README
 HuongDanCaiDat.txt   # detailed installation guide (Vietnamese)
 HuongDanSuDung.txt   # detailed usage guide (Vietnamese)
 ```
@@ -66,7 +80,7 @@ Tested with Python 3.12. A CUDA GPU with at least 8 GB VRAM is recommended; 16 G
 | Dataset | Source |
 |---|---|
 | MUFAC (Korean Family, 128×128) | [Kaggle mirror](https://www.kaggle.com/datasets/thenhtemle/custom-korean-family-faces) · [original](https://postechackr-my.sharepoint.com/:u:/g/personal/dongbinna_postech_ac_kr/EbMhBPnmIb5MutZvGicPKggBWKm5hLs0iwKfGW7_TwQIKg?download=1) |
-| VGGFace2 (300-identity subset) | [Kaggle](https://www.kaggle.com/datasets/hearfool/vggface2) |
+| VGGFace2 (300-identity subset) | [Kaggle](https://www.kaggle.com/datasets/dimarodionov/vggface2/train) |
 
 On MUFAC the ArcFace head classifies **age** (the benchmark's original task) while the unlearning unit is the **household** — a separate label. Good household unlearning should therefore reduce family-cluster recognizability *without* necessarily reducing retain accuracy. On VGGFace2 classification and forget unit coincide.
 
@@ -105,6 +119,11 @@ Cluster-destruction metrics are *higher is better*; neighbour shift is *lower is
 On MUFAC, LPEU is the only method with positive movement on every cluster-destruction metric while also leading on retain accuracy — above the original model. NegGrad in fact moves in the *wrong* direction on most cluster metrics.
 
 ### The forgetting–damage frontier
+
+<p align="center">
+  <img src="figures/frontier.png" alt="Forgetting-damage frontier" width="72%">
+</p>
+
 
 Plotting each ablation configuration with neighbour shift on the horizontal axis and forget similarity drop on the vertical reveals that all configurations lie close to a **single line** (slope 0.77, R² = 0.974). The protection mechanisms do **not** decouple forgetting from collateral damage — disabling one slides the operating point *along* the same frontier rather than off it.
 
