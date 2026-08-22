@@ -19,7 +19,7 @@ LPEU targets the representation directly. It builds per-identity prototypes from
 | Forget unit | Household (MUFAC) / identity (VGGFace2) | Individual person (finer grain) |
 | MUFAC forget set | 50 households (1,149 images) | 100 of 809 eligible individuals (~12%) |
 | VGGFace2 scale | 3,000 identities | 1,500 identities |
-| Forget-branch loss | $\mathcal{L}_{erase}$, $\mathcal{L}_{repel}$ | + staged $\mathcal{L}_{kl\text{-uni}}$ and, in the featured configuration (**Hue C**), $\mathcal{L}_{div}$ (class-matched divergence, targets the forgetting score directly) |
+| Forget-branch loss | `L_erase`, `L_repel` | + staged `L_kl-uni` and, in the featured configuration (**Hue C**), `L_div` (class-matched divergence, targets the forgetting score directly) |
 | Forget-branch schedule | Single-phase, gated by the retain anchor's three-stage schedule | Explicit two-state **Migrate → Shatter** schedule, decoupled from the anchor schedule |
 | Status | FAIR 2026, under review | Companion manuscript — same authors, results reported here; confirm venue/year before citing formally |
 
@@ -31,14 +31,14 @@ Both studies share the exact same backbone, prototype/anchor mechanism, retain-p
   <img src="figures/architecture.png" alt="LPEU architecture, updated with Hue C" width="80%">
 </p>
 
-<p align="center"><em>The trainable student (top) and frozen teacher (bottom) share the backbone, neck, and ArcFace head. The forget branch follows its own Migrate&nbsp;&rarr;&nbsp;Shatter schedule (Migrate: cluster relocates as one block; Shatter: the cluster actually breaks apart), decoupled from the retain anchor's own three-stage schedule. The Hue C divergence term ($\mathcal{L}_{div}$) is staged on the same Migrate/Shatter switch.</em></p>
+<p align="center"><em>The trainable student (top) and frozen teacher (bottom) share the backbone, neck, and ArcFace head. The forget branch follows its own Migrate&nbsp;&rarr;&nbsp;Shatter schedule (Migrate: cluster relocates as one block; Shatter: the cluster actually breaks apart), decoupled from the retain anchor's own three-stage schedule. The Hue C divergence term (<code>L_div</code>) is staged on the same Migrate/Shatter switch.</em></p>
 
 | Component | Role |
 |---|---|
-| Anti-prototype push ($\mathcal{L}_{erase}$) | Moves forget embeddings away from their original cluster centre |
-| Entropy correction / KL-to-uniform ($\mathcal{L}_{kl\text{-uni}}$) | Drives the posterior to uniform, preventing *confident* misprediction |
-| Negative-margin pairwise repulsion ($\mathcal{L}_{repel}$) | Breaks the cluster's internal cohesion (margin $\tau=-0.3$) |
-| Class-matched divergence ($\mathcal{L}_{div}$, companion study, Hue C) | Pulls the forget-set output distribution toward the frozen original model's distribution on genuinely unseen, class-matched data — targets the forgetting score (FS) directly rather than through a proxy |
+| Anti-prototype push (`L_erase`) | Moves forget embeddings away from their original cluster centre |
+| Entropy correction / KL-to-uniform (`L_kl-uni`) | Drives the posterior to uniform, preventing *confident* misprediction |
+| Negative-margin pairwise repulsion (`L_repel`) | Breaks the cluster's internal cohesion (margin τ = −0.3) |
+| Class-matched divergence (`L_div`, companion study, Hue C) | Pulls the forget-set output distribution toward the frozen original model's distribution on genuinely unseen, class-matched data — targets the forgetting score (FS) directly rather than through a proxy |
 | Global distillation + CE | Preserves overall retain-set behaviour |
 | K-NN local anchor | Protects the identities geometrically closest to the forget cluster (30 on MUFAC household-level; adapted per study) |
 | Retain-prototype anchor | Holds retain samples at their own frozen prototypes |
@@ -49,30 +49,17 @@ Both studies share the exact same backbone, prototype/anchor mechanism, retain-p
 ## Repository structure
 
 ```
+figures/                        # figures used in this README
 src/
 ├── mufac/
-│   ├── lpeu-v7-mufac.ipynb              # main paper — household-level MUFAC
-│   ├── lpeu-v7-mufac-person-C.ipynb     # companion study — person-level MUFAC, Hue C
-│   ├── original_model.pt                # pretrained original model
-│   ├── lpeu_mufac_model.pt              # after LPEU unlearning
-│   ├── lpeu_mufac_repaired_model.pt     # after post-unlearning repair
-│   ├── results_mufac.json               # main-paper metric results
-│   └── ablation_result_mufac.json       # main-paper ablation study results
+│   └── lpeu-v7-mufac.ipynb       # MUFAC experiments
 └── vggface2/
-    ├── lpeu-v7-vgg-face2.ipynb          # main paper — VGGFace2 (3,000 identities)
-    ├── lpeu-v7-vggface2-C.ipynb         # companion study — VGGFace2 (1,500 identities), Hue C
-    ├── original_model.pt
-    ├── lpeu_v7_model.pt
-    ├── lpeu_v7_repaired_model.pt
-    ├── results_v7.json
-    └── ablation_results_vggface2.json
-
-figures/             # figures used in this README
-HuongDanCaiDat.txt   # detailed installation guide (Vietnamese)
-HuongDanSuDung.txt   # detailed usage guide (Vietnamese)
+    └── lpeu-v7-vggface2.ipynb    # VGGFace2 experiments
+.gitattributes
+README.md
 ```
 
-The `.pt` and `.json` files are **pre-computed results for the main paper**, so every table in the main paper can be reproduced without retraining. The companion-study notebooks are provided as-is; their reported numbers come from the runs logged in the companion manuscript, and pre-computed checkpoints for them are not yet included in this repository.
+Both notebooks currently implement the companion study's pipeline (person-level forget unit, Migrate→Shatter staging, Hue C's `L_div` term); the household-level and 3,000-identity main-paper results reported below come from the same pipeline run at that configuration and are documented in the papers.
 
 ## Setup
 
@@ -88,7 +75,7 @@ Verify:
 python -c "import torch, torchvision, numpy, pandas, sklearn, PIL; print('OK')"
 ```
 
-Tested with Python 3.12. A CUDA GPU with at least 8 GB VRAM is recommended; 16 GB RAM and 5 GB free disk (more for the 1,500-identity VGGFace2 companion run). Full details in [`HuongDanCaiDat.txt`](HuongDanCaiDat.txt).
+Tested with Python 3.12. A CUDA GPU with at least 8 GB VRAM is recommended; 16 GB RAM and 5 GB free disk (more for the 1,500-identity VGGFace2 run). Full details in [`HuongDanCaiDat.txt`](HuongDanCaiDat.txt).
 
 ## Datasets
 
@@ -101,14 +88,15 @@ On MUFAC the ArcFace head classifies **age** (the benchmark's original task) whi
 
 ## Running
 
-The notebooks were developed on Kaggle (GPU T4). Easiest path: upload the `.ipynb` to Kaggle, add the relevant dataset(s) via **Add Input**, enable GPU, then run all cells top to bottom.
+The notebooks were developed on Kaggle (GPU T4). Easiest path: upload the `.ipynb` to Kaggle, add the relevant dataset via **Add Input**, enable GPU, then run all cells top to bottom.
 
-To run locally, edit `dataset_root` (main-paper notebooks, `Config` class, cell **B**) or the dataset path in cell 0–1 (companion notebooks) to point at your local data.
+To run locally, edit `dataset_root` in the `Config` class (cell **B**) to point at your local data.
 
-- **Main-paper notebooks** (`lpeu-v7-mufac.ipynb`, `lpeu-v7-vgg-face2.ipynb`): cells are labelled `CELL B` … `CELL N`. **`CELL L` is the main entry point** and runs the full pipeline end to end; `CELL M` runs the optional ablation study. The VGGFace2 notebook has three extra cells (0–2) that restructure the dataset — run them **before** `CELL B`.
-- **Companion notebooks** (`lpeu-v7-mufac-person-C.ipynb`, `lpeu-v7-vggface2-C.ipynb`): cells are numbered sequentially (0 onward); run top to bottom. `num_workers` and the dataset cache path (`STORAGE_ROOT` in the VGGFace2 companion notebook) may need adjusting for platforms other than Kaggle — see the comments in cells 0–1 of each notebook.
+Cells are labelled `CELL B` … `CELL N`. **`CELL L` is the main entry point** and runs the full pipeline end to end; `CELL M` runs the optional ablation study. The VGGFace2 notebook has three extra cells (0–2) that restructure the dataset — run them **before** `CELL B`.
 
-Approximate runtime on a Kaggle T4: 1–2 h for original training, 10–20 min for the unlearning loop, 15–25 min for repair, and roughly 7× a single unlearning run for the full ablation (main paper). The companion study's larger forget sets and, on VGGFace2, larger identity pool increase these times proportionally. Step-by-step instructions in [`HuongDanSuDung.txt`](HuongDanSuDung.txt).
+Two settings worth checking if you run outside Kaggle: `num_workers` in `Config` (Kaggle's own environment can require `0`), and the dataset cache path used to download/unzip VGGFace2 (pin it to a persistent directory so re-runs don't re-download).
+
+Approximate runtime on a Kaggle T4: 1–2 h for original training, 10–20 min for the unlearning loop, 15–25 min for repair, and roughly 7× a single unlearning run for the full ablation. The VGGFace2 notebook's larger identity pool increases these times proportionally. Step-by-step instructions in [`HuongDanSuDung.txt`](HuongDanSuDung.txt).
 
 ## Results — main paper (household-level)
 
@@ -146,9 +134,9 @@ Ranked by exchange rate, full LPEU reaches 0.776 while the best ablated variant 
 
 ## Results — companion study (person-level, Hue C)
 
-Forget unit is an individual person; the entropy-maximizing and divergence terms are staged on the Migrate → Shatter schedule described above. FS is the paper-defined forgetting score, $|0.5-M|$ with $M$ the MIA-attacker accuracy — lower is better (more private).
+Forget unit is an individual person; the entropy-maximizing and divergence terms are staged on the Migrate → Shatter schedule described above. FS is the paper-defined forgetting score, `|0.5 − M|` with `M` the MIA-attacker accuracy — lower is better (more private).
 
-**MUFAC** (forget unit: person, $n_{\text{forget}}=100$ of 809, $w_{\text{div}}=20$, best-observed of four independent runs)
+**MUFAC** (forget unit: person, n_forget = 100 of 809, w_div = 20, best-observed of four independent runs)
 
 | Method | Retain Acc. | Forget Acc. | Sim Drop | FS (paper) |
 |---|---|---|---|---|
@@ -159,16 +147,16 @@ Forget unit is an individual person; the entropy-maximizing and divergence terms
 
 LPEU's FS was lower than its own run's Original in **all four** independent runs (Δ = −0.0017, −0.0067, −0.0050, −0.0183), a 48% relative reduction in the best run at unchanged retain accuracy — but **no individual run reaches bootstrap-based statistical significance** against any baseline (largest gap 0.0183 against a significance threshold of 0.043). Retain accuracy and cluster similarity drop, not subject to the same MIA sampling noise, are where LPEU's advantage is most solidly measured. Forget-set task accuracy never measurably moves at any stage, for any method — a structural consequence of the ArcFace head being fully frozen and restored around every forget step when the forget unit doesn't correspond to a classification class, not a tuning failure (see the companion manuscript's Discussion section).
 
-**VGGFace2** (forget unit: person, $N=1{,}500$, $n_{\text{forget}}=100$, Hue C mechanism, single run)
+**VGGFace2** (forget unit: person, N=1,500, n_forget = 100, Hue C mechanism, single run)
 
-| Method | Retain Acc. | MIA-AUC (forget vs. retain) | FS$_{\text{retain}}$ = \|0.5−AUC\| |
+| Method | Retain Acc. | MIA-AUC (forget vs. retain) | FS_retain = &#124;0.5 − AUC&#124; |
 |---|---|---|---|
 | Original | 0.5496 | 0.9459 | 0.4459 |
 | Fine-tune | 0.5487 | 0.9490 | 0.4490 |
 | NegGrad | 0.5478 | 0.9460 | 0.4460 |
 | **LPEU (Hue C)** | **0.5601** | **0.9143** | **0.4143** |
 
-On VGGFace2 the standard unseen-identity FS protocol used above is structurally inapplicable (it returns a ceiling of $M=1.000$ for every method, including Original, since identity recognition cannot generalize to a never-seen person). This repository's companion notebook instead reports a same-population forget-vs-retain comparison ($\text{FS}_{\text{retain}}$, not numerically comparable to the MUFAC FS above). LPEU is again the only method to move this privacy metric meaningfully (0.4459 → 0.4143, ~7% relative) while also leading on retain accuracy. One caveat, reported without reframing: cluster similarity drop was **not** favourable to LPEU on this single run (all methods below 0.01) — flagged for future replication rather than smoothed over.
+On VGGFace2 the standard unseen-identity FS protocol used above is structurally inapplicable (it returns a ceiling of `M = 1.000` for every method, including Original, since identity recognition cannot generalize to a never-seen person). This repository's VGGFace2 notebook instead reports a same-population forget-vs-retain comparison (`FS_retain`, not numerically comparable to the MUFAC FS above). LPEU is again the only method to move this privacy metric meaningfully (0.4459 → 0.4143, ~7% relative) while also leading on retain accuracy. One caveat, reported without reframing: cluster similarity drop was **not** favourable to LPEU on this single run (all methods below 0.01) — flagged for future replication rather than smoothed over.
 
 ## Known limitations
 
