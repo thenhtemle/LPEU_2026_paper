@@ -94,20 +94,113 @@ src/vggface2/
 analysis/
   vgg_identity_bootstrap.py      identity-level bootstrap of the forgetting score (VGGFace2)
 results/                         result files for every table in the paper
+requirements.txt                 Python dependencies
 ```
 
-## Running
+## Requirements
 
-**MUFAC.** Open the notebooks on Kaggle with the MUFAC data attached (`custom_train_dataset.csv`, `train_images/`) and run all cells. In `lpeu-mufac-person-resubmit.ipynb`, set `RUN_SEED` in cell B2.
+- Python 3.10 or 3.11
+- An NVIDIA GPU with at least 16 GB memory. The paper used a Kaggle P100/T4 for MUFAC and a Modal L40S for VGGFace2.
+- Python packages, listed in `requirements.txt`:
 
-**VGGFace2 on Modal.**
+```
+torch==2.5.1
+torchvision==0.20.1
+numpy
+pandas
+scikit-learn
+pillow
+matplotlib
+modal        # only for the VGGFace2 pipeline
+```
+
+## Installation
 
 ```bash
-pip install modal && modal setup
-modal run src/vggface2/modal/step1_prepare_data.py      # once: builds the image cache
-modal run --detach src/vggface2/modal/step2_run_vgg.py --seed 42
-modal volume get lpeu-vgg-cache runs/vgg_seed42 .
-python analysis/vgg_identity_bootstrap.py               # run inside the downloaded folder
+git clone https://github.com/thenhtemle/LPEU_2026_paper.git
+cd LPEU_2026_paper
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-`step1_prepare_data.py` expects VGGFace2 training images in a Modal volume named `lpeu-vggface2`. Adjust the path for your own copy of the dataset.
+To install a CUDA build of PyTorch that matches your driver, follow the selector at pytorch.org first, then run the last command.
+
+## Data
+
+**MUFAC.** Use the MUFAC benchmark of Choi & Na (arXiv:2311.02240). The code needs only `custom_train_dataset.csv` and the `train_images/` folder:
+
+```
+<dataset_root>/
+  custom_train_dataset.csv     # columns: image_path, age_class, family_id, person_id
+  train_images/                # F0000_P1_0.jpg, ...
+```
+
+On Kaggle, attach the dataset to the notebook; the default `dataset_root` in cell B points to `/kaggle/input/...`. To run elsewhere, set `cfg.dataset_root` to your own folder.
+
+**VGGFace2.** Obtain the VGGFace2 training set under its licence (Cao et al., FG 2018). The data-preparation step expects the usual layout, one folder per identity:
+
+```
+train/
+  n000001/0001_01.jpg ...
+  n000002/...
+```
+
+## Running MUFAC (Experiments 1 and 2)
+
+1. Open `src/mufac/lpeu-mufac-person-resubmit.ipynb` on Kaggle (GPU accelerator on) or in Jupyter on your own machine.
+2. In cell B, set `dataset_root` if you are not on Kaggle.
+3. In cell B2, set `RUN_SEED`. The paper uses 42 for the controlled run and 7 for the replication.
+4. Run all cells. Cell L trains Original and Retrain, runs Fine-tune, NegGrad, LPEU and LPEU without `L_div`, and evaluates them all.
+5. The outputs are written to `./runs/resubmit_seed<SEED>/`:
+   - `*.pt` — checkpoints.
+   - `results_resubmit_seed<SEED>.json` — all metrics.
+   - `losses_seed<SEED>.npz` — per-sample losses, needed for the bootstrap.
+
+`src/mufac/lpeu-v7-mufac.ipynb` is the four-run notebook of Experiment 1. Run it four times to reproduce Table III.
+
+A full run of either notebook takes a few hours on a Kaggle GPU; most of the time goes into training the original and retrained models.
+
+## Running VGGFace2 (on Modal)
+
+The VGGFace2 pipeline runs on [Modal](https://modal.com), which bills GPU time per second.
+
+1. Create a Modal account and authenticate once:
+   ```bash
+   pip install modal
+   modal setup                      # opens the browser to create a token
+   ```
+2. Upload VGGFace2 to a Modal volume (once):
+   ```bash
+   modal volume create lpeu-vggface2
+   modal volume put lpeu-vggface2 /path/to/vggface2/train vggface2_data/train
+   ```
+   The paper used the 1,352 identities of the training set that fit in this volume (40 images each). A volume of this type holds at most about 500,000 files.
+3. Build the 128×128 image cache, about 10 minutes on CPU only:
+   ```bash
+   modal run src/vggface2/modal/step1_prepare_data.py
+   ```
+   This step creates the volume `lpeu-vgg-cache` with `vgg/images_u8.npy`, `labels.npy` and `meta.json`.
+4. Run the experiment, about 1 hour on one L40S (≈ $3):
+   ```bash
+   modal run --detach src/vggface2/modal/step2_run_vgg.py --seed 42
+   ```
+   With `--detach`, the job keeps running after you close the terminal; follow its log on the Modal dashboard. Add `--quick` for a 2-epoch smoke test.
+5. Download the results and compute the identity-level bootstrap:
+   ```bash
+   modal volume get lpeu-vgg-cache runs/vgg_seed42 .
+   cd vgg_seed42
+   python ../analysis/vgg_identity_bootstrap.py
+   ```
+   `results.json` holds every metric in Table V; `signals.npz` holds the per-sample confidences and losses used by the attacker.
+
+## Reproducing the tables from the stored results
+
+The `results/` folder contains the outputs behind every table, so the tables can be checked without re-training:
+
+| File | Paper |
+|---|---|
+| `mufac_exp1_4runs.csv` / `.json` | Table III, Fig. 3 |
+| `mufac_exp2_seed42_summary.csv` | Table IV |
+| `mufac_exp2_seed42_identity_bootstrap.json`, `mufac_exp2_seed7_identity_bootstrap.json` | Table IV, Fig. 4, Section V |
+| `vggface2_seed42_results.json`, `vggface2_seed42_identity_bootstrap.json` | Table V, Section VI |
