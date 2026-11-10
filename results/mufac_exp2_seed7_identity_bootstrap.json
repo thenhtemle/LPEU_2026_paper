@@ -1,0 +1,7 @@
+{"note":"Kaggle edited-c-2stages-lpeu-mufac v2 (runId 366593546), seed 7, only_orig_retrain. Same method as seed42_identity_bootstrap.json.",
+ "pipeline_summary":{"Original":{"retain_acc":0.7116,"forget_acc":0.9215,"FS_acc_first300":0.0783,"FS_auc_first300":0.0987,"AUC_vs_retain":0.6841},"Retrain":{"retain_acc":0.7141,"forget_acc":0.6955,"FS_acc_first300":0.0483,"FS_auc_first300":0.0477,"AUC_vs_retain":0.5322}},
+ "first300_coverage_persons_households":[38,10,100,29],
+ "all":{"Original":0.1008,"Retrain":0.0074},
+ "mean_loss_forget_unseen":{"Original":[1.3658,1.5309],"Retrain":[1.5397,1.5315]},
+ "bootstrap_mean_CI95":{"Original":[0.1042,0.0433,0.1633],"Retrain":[0.0244,0.0017,0.0667]},
+ "paired_delta_Retrain_minus_Original_mean_CI95_P(delta<=0)":[-0.0799,-0.1383,0.0133,0.959]}

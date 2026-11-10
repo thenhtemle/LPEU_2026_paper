@@ -1,0 +1,6 @@
+{"note":"Recomputed from losses_seed42.npz (Kaggle scriptVersionId=366541900). FS_acc=|0.5-acc| of 1-D logistic regression on -CE loss. 'first300' = pipeline (first 300 samples in data order: 37/100 forget persons, 10/29 eval households). 'all' = all 777 forget imgs vs 777 evenly spaced eval imgs. Bootstrap: 2000 reps, resample persons & households with replacement, 300 vs 300 draws, paired across models.",
+ "first300":{"Original":0.030,"Retrain":0.108,"FineTune":0.027,"NegGrad":0.027,"LPEU":0.032,"LPEU-noDiv":0.032},
+ "all":{"Original":0.0991,"Retrain":0.0206,"FineTune":0.101,"NegGrad":0.0991,"LPEU":0.101,"LPEU-noDiv":0.1023},
+ "bootstrap_mean_CI95":{"Original":[0.0961,0.0417,0.15],"Retrain":[0.0296,0.0017,0.0783],"FineTune":[0.0983,0.0433,0.1533],"NegGrad":[0.0969,0.0417,0.15],"LPEU":[0.0989,0.045,0.1517],"LPEU-noDiv":[0.0996,0.045,0.1533]},
+ "paired_delta_vs_Original_mean_CI95_P(delta<=0)":{"Retrain":[-0.0666,-0.135,0.0283,0.922],"FineTune":[0.0022,-0.0067,0.0117,0.388],"NegGrad":[0.0008,-0.0067,0.0083,0.5185],"LPEU":[0.0028,-0.0033,0.0117,0.3245],"LPEU-noDiv":[0.0034,-0.0033,0.0133,0.265]},
+ "mean_loss_forget_unseen":{"Original":[1.3926,1.5364],"Retrain":[1.589,1.5529],"LPEU":[1.3949,1.5406]}}
